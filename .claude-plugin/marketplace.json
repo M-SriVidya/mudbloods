@@ -1,0 +1,14 @@
+{
+  "name": "mudbloods",
+  "owner": {
+    "name": "Mudbloods"
+  },
+  "plugins": [
+    {
+      "name": "mudbloods",
+      "source": "./mudbloods",
+      "description": "Architecture-first, phase-by-phase build pipeline with red/blue review loops and a self-improving playbook."
+    }
+  ],
+  "description": "Mudbloods: self-improving, architecture-first build pipeline for Claude Code."
+}
