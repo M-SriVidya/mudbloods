@@ -15,6 +15,30 @@ next run makes fewer mistakes.
 
 </div>
 
+| | |
+|---|---|
+| 🧪 **Fixed tasks** | 8 tasks, 80 hidden tests the agent never sees |
+| 📏 **Honest score** | Hidden tests, bugs and cost. No AI grades itself |
+| 🔒 **Gated learning** | Every skill rewrite is re-scored. Kept and git-tagged if the score holds, rolled back if it drops |
+| 🎯 **No memorising** | Learns from 4 train tasks, proves itself on 4 held-out tasks |
+| 💸 **Cheap hands** | Opus and Sonnet think, Haiku writes all the code |
+
+### Judges: check it in 2 minutes, for free
+
+```
+git clone https://github.com/M-SriVidya/mudbloods && cd mudbloods
+node bench/verify-tests.mjs                  # hidden tests are fair: 80/80 vs reference solutions
+MB_DRYRUN=1 MB_DRYRUN_BAD=2 node bench/evolve.mjs --iterations 3
+                                             # whole learning loop with fake builds: watch a rewrite
+                                             # get kept, a harmful one roll back, the held-out check run
+node bench/report.mjs                        # bench/REPORT.md + bench/chart.svg
+git log --oneline && git tag                 # one commit + tag per accepted skill version
+```
+
+Needs Node 22+. The dry run makes real git commits and tags, so use a fresh
+clone. The real loop (`node bench/evolve.mjs`) runs full builds through
+`claude -p` and costs money: see [section 6](#6-proof-it-gets-better-and-the-number-is-honest).
+
 ---
 
 ## Contents
@@ -194,10 +218,14 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-    R[Run] --> S[Scorecard<br/>tests · bugs · rounds · tokens]
-    S --> L[Learner mines:<br/>bugs the coder caused<br/>bugs red missed<br/>false alarms<br/>designs you changed]
-    L --> P[Playbooks rewritten]
-    P --> R
+    R[Run] --> S[Score<br/>hidden tests · bugs · cost]
+    S --> L[Learner mines:<br/>bugs the coder caused<br/>bugs red missed<br/>false alarms<br/>fixes Haiku couldn't make]
+    L --> P[Candidate playbooks]
+    P --> G{Score holds?}
+    G -- yes --> K[Commit + tag]
+    G -- no --> X[Roll back]
+    K --> R
+    X --> L
 ```
 
 Every agent reads a **playbook** before it starts. The learner edits those
@@ -210,12 +238,13 @@ rule can be traced and removed.
 
 | Playbook layer | Where | Learns |
 |---|---|---|
-| Seed | inside the skill | Rules proven across repos (`learn --promote`, with your OK) |
+| Seed | inside the skill, versioned in git | Rules that passed the bench gate (`bench/evolve.mjs`), or that you promoted (`learn --promote`) |
 | You | `~/.claude/mudbloods/playbooks/` | Your habits across all projects |
 | This repo | `.mudbloods/playbooks/` | This codebase's conventions, with `file:line` examples |
 
-Rules that never prove useful are deleted. Only playbooks learn. The pipeline
-itself changes only by hand, so it can't drift.
+Rules that stop paying off are pruned, and pruning must pass the same gate.
+Only playbooks learn. The pipeline itself changes only by hand, so it can't
+drift.
 
 ### What you can ask it for
 

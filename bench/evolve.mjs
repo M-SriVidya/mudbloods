@@ -27,6 +27,8 @@ const PAR = Number(opt("--parallel", 4));
 const REUSE = a.includes("--reuse-v0");
 
 const git = (...args) => spawnSync("git", args, { cwd: REPO, encoding: "utf8" });
+// Commits need an identity; fall back to a bench one on fresh machines.
+const ID = git("config", "user.email").stdout.trim() ? [] : ["-c", "user.name=mudbloods-bench", "-c", "user.email=bench@mudbloods.local"];
 const mean = (rows) => Math.round((rows.reduce((s, r) => s + r.score, 0) / rows.length) * 10) / 10;
 const log = (s) => console.log(`\n== ${s}`);
 
@@ -117,7 +119,7 @@ for (let k = 1; k <= ITER; k++) {
 
   if (kept) {
     git("add", "--", PLAYBOOKS);
-    git("commit", "-q", "-m", `skills ${v}: train score ${best} -> ${cand}`, "-m", `Learned by bench/evolve.mjs from ${bestVersion} train results. Gate passed.`);
+    git(...ID, "commit", "-q", "-m", `skills ${v}: train score ${best} -> ${cand}`, "-m", `Learned by bench/evolve.mjs from ${bestVersion} train results. Gate passed.`);
     tag(`skills-${v}`);
     console.log(`KEPT ${v}: ${best} -> ${cand} (tag skills-${v})`);
     best = cand; bestVersion = v; bestTrain = rows;
