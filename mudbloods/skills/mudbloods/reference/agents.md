@@ -4,6 +4,16 @@ Installed as a plugin, agent types are namespaced: `mudbloods:mb-coder`.
 Installed with `install.mjs` into `~/.claude/agents/`, they are bare: `mb-coder`.
 Try the namespaced name first, then the bare one, then the fallback.
 
+Other hosts:
+
+- **Generic subagents only** (TrueForge dynamic sub-agents, Codex, others):
+  use the fallback column for every role. If the host cannot pick a model
+  per subagent, keep the split as close as it allows: strongest model for
+  thinking roles, cheapest capable model for coder and blue team.
+- **No subagents at all:** play each role yourself, in sequence, with the
+  same inputs and the same output format. Finish one role's output file
+  before starting the next role, so roles do not leak into each other.
+
 | Agent | Model | Role | Playbook | Fallback |
 |---|---|---|---|---|
 | `mb-architect` | opus | Reads repo plus instruction, drafts architecture diagram and open questions | `architect.md` | `general-purpose`, model `opus` |
