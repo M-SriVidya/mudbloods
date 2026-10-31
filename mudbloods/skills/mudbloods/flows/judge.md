@@ -31,10 +31,22 @@ failing check fails the build.
 ## Scorecard
 
 After the verdict, write `scorecard.json` (format in `reference/state.md`)
-and append it as one line to `.mudbloods/scores.jsonl`. Then run
-`node <SKILL_DIR>/bench/score.mjs .mudbloods/runs/<run-id>/scorecard.json`
-to compute the score; record it in the scorecard as `"score"`. If Node is not
-available, compute it with the formula in `flows/bench.md` and say so.
+and append it as one line to `.mudbloods/scores.jsonl`. Compute `"score"`
+with the same arithmetic as the bench, using acceptance checks in place of
+hidden tests (no judgement, only counts):
+
+```
+score = 70 * acceptance.passed / acceptance.total
+      + 15 * max(0, 1 - (findings.high + 2 * findings.critical) / 10)
+      + 15 * min(1, 2.0 / cost_usd)        (0 when cost is unknown)
+```
+
+The official number is the one `bench/run.mjs` computes from hidden tests;
+this in-run score is a quick indicator only.
+
+In `--bench` mode, also make sure every `findings.jsonl` is complete and
+uses the exact schema in `reference/severity.md`: the bench reads severity,
+status and `escalated` from it.
 
 When run as the atomic verb, print the verdict, acceptance count, and the
 fix list if any.

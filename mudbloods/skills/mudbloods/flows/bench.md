@@ -1,42 +1,36 @@
-# Flow: bench (fixed tasks, fixed scorer)
+# Flow: bench (fixed tasks, deterministic score, gated learning)
 
-Proves improvement with a number: run 1 versus a later run on the same tasks,
-with only the playbooks changed in between.
+The bench lives in the mudbloods source repo at `bench/`, outside the plugin
+folder, so agents being scored cannot read the hidden tests.
 
-## Run it
+When the user runs `/mudbloods bench`:
+
+1. Find the mudbloods source repo: the current repo if it has
+   `bench/evolve.mjs`, else ask the user for the path to a clone of
+   https://github.com/M-SriVidya/mudbloods.
+2. Tell the user what the full run costs: 8 tasks at v0, then 4 train tasks
+   per learning iteration, then 4 held-out tasks. Each task is a full
+   mudbloods build. Ask for a yes before starting.
+3. Run `node bench/evolve.mjs --iterations 2` from that repo with Bash, in
+   the background, and report the printed table when it finishes.
+
+Other commands the user can run directly:
+
+| Command | Does |
+|---|---|
+| `node bench/verify-tests.mjs` | Hidden tests vs reference solutions: must be 80/80 |
+| `node bench/run.mjs --split train` | Score the train tasks once with current playbooks |
+| `node bench/evolve.mjs` | v0, learn, gate, commit or roll back, held-out check |
+| `node bench/score.mjs --compare` | Table of every version |
+| `node bench/report.mjs` | `bench/REPORT.md` and `bench/chart.svg` |
+
+## Score (0-100 per task, no LLM judgement)
 
 ```
-node <SKILL_DIR>/bench/run.mjs            # all tasks
-node <SKILL_DIR>/bench/run.mjs 02-lru-cache
+score = 70 * hidden tests passed / total
+      + 15 * max(0, 1 - (high + 2 * critical) / 10)
+      + 15 * min(1, 2.00 / cost_usd)
 ```
 
-`run.mjs` copies each task in `bench/tasks/` into a fresh temp workspace,
-runs `claude -p "/mudbloods build --auto <task instruction>"` there, then runs
-the task's hidden acceptance tests (`accept.test.mjs`, kept outside the
-workspace until scoring so agents cannot read them). It writes one line per
-task to `bench/results.jsonl` and prints the suite score.
-
-From inside a session, `/mudbloods bench` runs the same script with Bash
-(timeout 600000 ms per task, in the background) and reports the table when
-it finishes.
-
-## Score formula (0-100, per task)
-
-```
-score = 50 * hidden_tests_passed / hidden_tests_total
-      + 20 * (judge_verdict == "pass")
-      + 15 * max(0, 1 - (high_found + 2*critical_found) / 10)
-      + 10 * phases_clean_first_round / phases
-      +  5 * min(1, 400000 / tokens_total)     (term is 0 when tokens_total is null)
-```
-
-Suite score is the mean over tasks. `bench/score.mjs` implements this; the
-formula above is the contract.
-
-## Improvement loop for the demo
-
-1. `node <SKILL_DIR>/bench/run.mjs` → run 1 score, playbook `seed`.
-2. `/mudbloods learn` on each run, then `/mudbloods learn --promote`.
-3. `node <SKILL_DIR>/bench/run.mjs` again → run 2 score, playbook `seed+N`.
-4. `node <SKILL_DIR>/bench/score.mjs --compare` prints both runs side by side with the
-   playbook diff summary.
+Cost comes from Claude Code's own usage report (`total_cost_usd`), across
+every model and subagent in the run.

@@ -1,0 +1,1 @@
+export function countWords(text) { const m = new Map(); for (const w of text.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? []) m.set(w, (m.get(w) ?? 0) + 1); return m; }

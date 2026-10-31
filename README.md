@@ -24,7 +24,7 @@ next run makes fewer mistakes.
 3. [How to get a task done](#3-how-to-get-a-task-done)
 4. [The recipe book: every command](#4-the-recipe-book-every-command)
 5. [Examples](#5-examples)
-6. [Proof: tests and scores](#6-proof-tests-and-scores)
+6. [Proof: it gets better, and the number is honest](#6-proof-it-gets-better-and-the-number-is-honest)
 7. [What's in the repo](#7-whats-in-the-repo)
 
 ---
@@ -70,9 +70,16 @@ rooted at `SKILL.md`, with `name` and `description` frontmatter.
    Then add the `mudbloods` skill and keep **dynamic sub-agents** on.
 4. Chat with the agent: `/mudbloods build <what you want>`.
 
-On TrueForge, the architects, red team and judges run as TrueForge
-sub-agents. The pipeline, the review loops and the learning work the same
-way.
+On TrueForge, mudbloods uses three of the platform's building blocks:
+
+| TrueForge feature | Used for |
+|---|---|
+| **Skills** | mudbloods itself: `SKILL.md`, flows and playbooks |
+| **Sub-agents** | architects, critics, coders, red team, blue team, judges, learner |
+| **Sandbox** | where the code is written, tests run and playbooks get rewritten |
+
+The pipeline, the review loops and the learning work the same way as in
+Claude Code.
 
 ### Any other agent (Codex, Cursor, Gemini CLI, your own harness)
 
@@ -267,7 +274,7 @@ point and pick up later with the matching command.
 | `/mudbloods review [PR / branch / path]` | Red team review of any code; `--fix` adds the blue team | Code mudbloods didn't write |
 | `/mudbloods judge` | Final panel: does the result match the design and criteria? | After building, or on your own work |
 | `/mudbloods learn [--promote]` | Turns the last run's mistakes into playbook rules | Runs automatically after `build` |
-| `/mudbloods bench [task]` | Runs the fixed test tasks and scores them | Prove it improved |
+| `/mudbloods bench` | Runs the gated learning loop on the fixed tasks (asks before spending) | Prove it improved |
 | `/mudbloods status` | Where the run is, open bugs, score trend | Any time |
 
 | Flag | Effect |
@@ -356,56 +363,99 @@ scores: 61 -> 68 -> 74 (last 3 runs)
 
 ---
 
-## 6. Proof: tests and scores
+## 6. Proof: it gets better, and the number is honest
 
-mudbloods ships with **3 fixed tasks and 30 hidden tests**. The agent never
-sees the tests while it builds.
+The TrueForge rule for this track: *a later run on the same fixed tasks beats
+run 1, using skills the agent rewrote.* This is how mudbloods meets it.
 
-| Task | What the agent must build | Hidden tests |
+```mermaid
+flowchart LR
+    V0[v0 playbooks] --> S0[Score 4 train<br/>+ 4 held-out tasks]
+    S0 --> L[Learner rewrites playbooks<br/>from train results only]
+    L --> G{Re-score train.<br/>Score dropped?}
+    G -- no --> K[git commit + tag skills-vK]
+    G -- yes --> RB[git checkout: rolled back]
+    K --> L
+    RB --> L
+    K --> H[Score held-out tasks<br/>with final playbooks]
+```
+
+### Fixed tasks with hidden tests
+
+8 small tasks with 80 hidden tests. Agents build in an empty throwaway repo
+and never see the tests.
+
+| Train (the learner sees these results) | Held-out (it never does) |
+|---|---|
+| `01-slugify`: URL slugs, accents, max length | `03-wordcount-cli`: CLI, stdin, `--top`, `--json`, exit codes |
+| `02-lru-cache`: eviction order, TTL, injected clock | `06-rate-limiter`: token bucket, per-key limits |
+| `04-calculator`: precedence, unary minus, errors | `07-url-shortener`: aliases, collisions, hit counts |
+| `05-csv-parser`: RFC 4180 quoting, headers | `08-semver`: SemVer 2.0 ordering, `^` and `~` ranges |
+
+Every hidden test passes against a hand-written reference solution, so a low
+score means the agent failed, not the test:
+
+```
+node bench/verify-tests.mjs        # 8 suites, 80/80
+```
+
+### The score: no AI grading itself
+
+| Part | Points | Source |
 |---|---|---|
-| `01-slugify` | URL slug function: accents, separators, max length, type errors | 10 |
-| `02-lru-cache` | LRU cache with TTL, eviction order, injectable clock | 10 |
-| `03-wordcount-cli` | Word-frequency CLI: files or stdin, `--top`, `--json`, exit codes | 10 |
+| Hidden tests passed | 70 | `node --test`, outside the agent |
+| Critical and high bugs the red team had to catch | 15 | counted from `findings.jsonl` |
+| Cost | 15 | Claude Code's own usage report, all models and subagents |
 
-Every hidden test was checked against a reference implementation (30/30 pass),
-so a low score means the agent failed, not that the test is wrong.
+```
+score = 70 * passed/total + 15 * max(0, 1 - (high + 2*critical)/10) + 15 * min(1, $2.00 / cost)
+```
 
-**Score per run (0–100), fixed formula:**
+### What it learns from
 
-| Part | Points | Measures |
+| Signal | Comes from | Rewrites |
 |---|---|---|
-| Hidden tests passed | 50 | Did it work? |
-| Judge verdict | 20 | Did it match the design? |
-| Bugs introduced | 15 | How clean was the first draft? |
-| Phases clean in round 1 | 10 | How good were the plans? |
-| Tokens used | 5 | How cheap was it? |
+| Bugs the red team caught | `findings.jsonl` | Coder playbook: a rule that stops the bug |
+| Bugs the red team **missed** | hidden tests that failed on train tasks | Red-team checklist: a new check. Coder: a new rule |
+| False alarms | red-team findings the blue team disproved | Red-team checklist: "don't flag X when Y" |
+| Fixes Haiku couldn't make | findings escalated to Sonnet | Blue-team playbook: a step-by-step recipe |
+| Rejected rewrites | earlier rollbacks | Never proposed again |
 
-**Run it:**
+Rules must describe the bug class, never the task. A rule like "handle unary
+minus after an operator" is allowed. A rule that names `calc.js` is not. That
+is why the held-out score matters: rules that only memorise the train tasks
+don't help there.
 
-```
-node mudbloods/skills/mudbloods/bench/run.mjs                    # run 1
-# /mudbloods learn  (after each task run)
-node mudbloods/skills/mudbloods/bench/run.mjs                    # run 2
-node mudbloods/skills/mudbloods/bench/score.mjs --compare
-```
-```
-task                   20261031T1200 20261101T0900
-01-slugify                      61.2          78.5
-02-lru-cache                      55            70
-SUITE                           58.1          74.3
-playbook                        seed        seed+4
-```
-*(This table shows the output format. Your numbers come from your own runs.)*
+Dead rules are pruned: a rule whose bug class has stopped appearing for 2
+versions is deleted, and the gate keeps the deletion only if the score holds.
 
-Check the scorer yourself:
+### Run it
 
 ```
-node mudbloods/skills/mudbloods/bench/score.mjs path/to/scorecard.json
+node bench/evolve.mjs --iterations 2      # v0, learn, gate, learn, gate, held-out
+node bench/report.mjs                     # bench/REPORT.md + bench/chart.svg
+git diff skills-v0 skills-v2 -- mudbloods/skills/mudbloods/playbooks
 ```
 
-The bench runner calls `claude -p`. On another host, run
-`/mudbloods build --auto <task>` in an empty folder, then
-`node --test <task>/accept.test.mjs` there.
+`bench/chart.svg` plots train score, held-out score and cost per task for each
+version. Each version's evidence, playbook diff and `lessons.md` are kept in
+`bench/artifacts/`.
+
+A full run calls `claude -p` for every task, about 20 full builds for two
+iterations, so it costs real money. To check the harness first for free:
+
+```
+MB_DRYRUN=1 node bench/evolve.mjs         # fake builds, real git, gate and report
+MB_DRYRUN=1 MB_DRYRUN_BAD=2 node bench/evolve.mjs --iterations 3   # see a rollback
+```
+
+Run dry runs in a scratch clone: they commit and tag like real runs.
+
+Bench runs load the skill from this repo (`--plugin-dir`) and ignore your
+user settings and plugins, so every version sees only the playbooks in git.
+By default the agents get `acceptEdits` plus a fixed tool allowlist. Setting
+`MB_PERMISSION=bypass` removes the allowlist; only do that in a container or
+VM.
 
 ---
 
@@ -422,8 +472,13 @@ mudbloods/
     SKILL.md                        command router + rules for every flow
     flows/                          one file per command, loaded only when used
     reference/                      roles, severity scale, saved state, playbook layers
-    playbooks/                      seed playbooks: the part that learns
-    bench/                          fixed tasks, hidden tests, runner, scorer
+    playbooks/                      seed playbooks: the part that learns (versioned, tagged)
+bench/                              outside the plugin, so agents can't read it
+  tasks/ + tasks.json               8 tasks, 80 hidden tests, train / held-out split
+  reference/                        hand-written solutions that prove the tests are fair
+  run.mjs  score.mjs                run tasks, deterministic score
+  evolve.mjs                        learn, gate, commit or roll back, held-out check
+  report.mjs                        REPORT.md + chart.svg
 ```
 
 <div align="center">

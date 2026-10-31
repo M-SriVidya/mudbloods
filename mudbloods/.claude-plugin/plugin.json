@@ -1,6 +1,6 @@
 {
   "name": "mudbloods",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Architecture-first build pipeline: architect agents, user sign-off, phased Haiku coding, red/blue review loops, final panel, and playbooks the agent rewrites after every run.",
   "author": {
     "name": "Mudbloods"

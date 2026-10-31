@@ -49,6 +49,45 @@ files. Show the diff and get an explicit yes before writing. In the mudbloods
 source repo, commit with message `learn: promote <n> rules (score <a> -> <b>)`
 only when the user asks to commit.
 
+## --bench --evidence <file> --version <vK>
+
+Called only by `bench/evolve.mjs`. No user is present. The evolve script, not
+a human, approves the change: it re-scores the train tasks and rolls the
+playbooks back if the score drops.
+
+1. Read the evidence JSON. Per train task it holds:
+   - `missed_by_red_team`: hidden tests that failed in the finished code.
+     These are bugs that got past both the coder and the red team.
+   - `caught_by_red_team`: critical/high findings, with the blue team's
+     `precedent` and `escalated` fields.
+   - `false_alarms`: red-team findings the blue team proved wrong.
+   - `rejected_candidates`: earlier rewrites that lowered the score, with
+     their diffs. Do not propose them again.
+2. Spawn one `mb-learner` with the evidence path, the seed playbooks in
+   `SKILL_DIR/playbooks/`, and `reference/playbooks.md`.
+3. Turn signals into rules, editing **only** the seed playbooks in
+   `SKILL_DIR/playbooks/`:
+
+| Evidence | Playbook | Rule shape |
+|---|---|---|
+| `missed_by_red_team` | `red-team.md` and `coder.md` | A check the red team must run, and a rule that stops the coder writing the bug. Write them for the general bug class, never the task. |
+| `caught_by_red_team` | `coder.md` | A rule that prevents the mistake. Use the blue team's fix as the recipe. |
+| `escalated: true` | `blue-team.md` | A step-by-step fix recipe for that class, so Haiku can fix it without help. |
+| `false_alarms` | `red-team.md` | "Do not flag X when Y", with the evidence that disproved it. |
+| A rule whose bug class did not appear in this version, after 2+ versions | any | Delete it (prune). |
+
+4. **No overfitting.** Never name a bench task, test name, function name or
+   file path from the evidence in a rule. "Handle unary minus after an
+   operator" is a good rule. "In `src/calc.js` handle `2*-3`" is overfitting,
+   and held-out tasks will expose it.
+5. Each rule ends with `(from <vK-1> <task>/<finding or test>, seen Nx)`.
+   Merge with an existing rule of the same intent by incrementing `seen`.
+   Keep each playbook at 40 rules max.
+6. Bump each changed file's `<!-- mb-version: N -->` header.
+7. Write `bench/artifacts/<vK>/lessons.md`: rules added, merged and pruned,
+   each with its evidence. Do not commit: the evolve script commits only if
+   the gate passes.
+
 ## Guardrails
 
 - Never write a rule without a run id and finding id behind it.

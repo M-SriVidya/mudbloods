@@ -1,0 +1,7 @@
+{
+  "train": ["01-slugify", "02-lru-cache", "04-calculator", "05-csv-parser"],
+  "heldout": ["03-wordcount-cli", "06-rate-limiter", "07-url-shortener", "08-semver"],
+  "ref_cost_usd": 2.0,
+  "weights": { "tests": 70, "bugs": 15, "cost": 15 },
+  "bug_cap": 10
+}

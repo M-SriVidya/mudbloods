@@ -38,8 +38,8 @@ load flows you will not run: every file costs tokens.
 | `code [phase-id]` | `flows/code.md` | Build one phase (or the next pending one) and run its review loop |
 | `review [PR# / branch / path]` | `flows/review.md` | Standalone red/blue review of a PR, diff or path |
 | `judge` | `flows/judge.md` | Final panel: built result against architecture and acceptance criteria |
-| `learn [--promote]` | `flows/learn.md` | Mine the last run, rewrite the playbooks |
-| `bench` | `flows/bench.md` | Run the fixed task suite and record the score |
+| `learn [--promote]` or `learn --bench --evidence <file>` | `flows/learn.md` | Mine the last run (or bench evidence), rewrite the playbooks |
+| `bench` | `flows/bench.md` | Explain or start the fixed-task bench and the gated learning loop |
 | `status` | `flows/status.md` | Show run state, score history and playbook version |
 
 Plugin installs also expose one command per verb (`/mudbloods:build`,
@@ -55,6 +55,10 @@ Flags valid on any verb:
   when the user passed it, and always for `bench`.
 - `--phases N`: cap the planner at N phases.
 - `--no-learn`: skip the learn step at the end of `build`.
+- `--bench`: set by `bench/run.mjs` and `bench/evolve.mjs`. Implies `--auto`
+  and `--no-learn`. Use **seed playbooks only** (ignore the user and repo
+  layers) so every bench run sees exactly the playbooks in git. Never ask the
+  user anything: nobody is there to answer.
 
 ## 2. Rules for every flow
 
